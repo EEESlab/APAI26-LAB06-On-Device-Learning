@@ -12,7 +12,7 @@ Slides: [here](docs/slides.pdf)
 
 Use Virtuale, upload only the assignment file named as follows:
 
-`LAB#_APAI_name1_name2.ipynb`
+`LAB#_APAI_name1_name2.pdf`
 
 ___
 
