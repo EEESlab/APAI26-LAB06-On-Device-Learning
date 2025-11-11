@@ -55,6 +55,6 @@ APP_SRCS += $(TRAIN_LIB_SRCS)/pulp_train_utils_fp32.c
 
 # RULES
 get_golden:
-	python ./utils/GM.py
+	python3 ./utils/GM.py
 
 include $(RULES_DIR)/pmsis_rules.mk
