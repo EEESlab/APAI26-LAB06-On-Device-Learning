@@ -14,57 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-import torch
+import numpy as np
 
 def tensor_to_string(tensor):
+	"""Flatten an N-D array (row-major / C order) into a C initializer string."""
+	arr = np.asarray(tensor, dtype=np.float32)
+	print("NDIM", arr.ndim)
+	if arr.ndim > 1:
+		print('Sizes: ', *arr.shape)
+
 	tensor_string = ''
-	ndim = len(tensor.size())
-	print("NDIM", ndim)
-
-	if ndim == 1:
-		sz0 = tensor.size()[0]
-		for i in range(sz0):
-			tensor_string += str(tensor[i].item())
-			tensor_string += 'f, ';# if i < sz0-1 else 'f'
-
-	elif ndim == 2:
-		sz0 = tensor.size()[0]
-		sz1 = tensor.size()[1]
-		print('Sizes: ',sz0,sz1)
-		for i in range(sz0):
-			for j in range(sz1):
-				tensor_string += str(tensor[i][j].item())
-				tensor_string += 'f, ';# if (i*j) < (sz0-1)*(sz1-1) else 'f'
-
-	elif ndim == 3:
-		sz0 = tensor.size()[0]
-		sz1 = tensor.size()[1]
-		sz2 = tensor.size()[2]
-		print('Sizes: ', sz0, sz1, sz2)
-		for i in range(sz0):
-			for j in range(sz1):
-				for k in range(sz2):
-					tensor_string += str(tensor[i][j][k].item())
-					tensor_string += 'f, '; # if (i*j*k) < (sz0-1)*(sz1-1)*(sz2-1) else 'f'
-
-	elif ndim == 4:
-		sz0 = tensor.size()[0]
-		sz1 = tensor.size()[1]
-		sz2 = tensor.size()[2]
-		sz3 = tensor.size()[3]
-		print('Sizes: ', sz0, sz1, sz2, sz3)
-		for i in range(sz0):
-			for j in range(sz1):
-				for k in range(sz2):
-					for t in range(sz3):
-						tensor_string += str(tensor[i][j][k][t].item())
-						tensor_string += 'f, '; # if (i*j*k*t) < (sz0-1)*(sz1-1)*(sz2-1)*(sz3-1) else 'f'
-
-	else:
-
-		pass # FIXME to be implemented
-
-
+	for v in arr.reshape(-1):
+		tensor_string += str(float(v))
+		tensor_string += 'f, '
 	return tensor_string
 
 
@@ -80,11 +42,11 @@ def main():
 
 	dim0_sz = args.in_size
 	dim1_sz = args.out_size
-	t = torch.rand(dim0_sz)
+	t = np.random.rand(dim0_sz).astype(np.float32)
 	print(t)
 	print(tensor_to_string(t))
 
-	t = torch.rand(dim1_sz, dim0_sz)
+	t = np.random.rand(dim1_sz, dim0_sz).astype(np.float32)
 	print(t)
 	print(tensor_to_string(t))
 

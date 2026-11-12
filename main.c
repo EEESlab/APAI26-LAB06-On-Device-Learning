@@ -24,7 +24,7 @@
 int main (void) {
 
 
-  printf("\nHello sir.\nConfiguring cluster..\n");
+  printf("\nConfiguring cluster..\n");
   // Configure cluster
   struct pi_device cluster_dev;
   struct pi_cluster_conf cl_conf;

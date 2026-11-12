@@ -1,6 +1,4 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import numpy as np
 import dump_utils as dump
 import math
 
@@ -20,6 +18,7 @@ l0_hstr = 1
 l0_wstr = 1
 l0_hpad = 0
 l0_wpad = 0
+
 # LAYER 1 SIZES
 l1_in_ch = 8
 l1_out_ch = 8
@@ -31,6 +30,7 @@ l1_hstr = 1
 l1_wstr = 1
 l1_hpad = 0
 l1_wpad = 0
+
 # LAYER 2 SIZES
 l2_in_ch = 288
 l2_out_ch = 10
@@ -57,6 +57,7 @@ f.write('#define Tstr_H_l0 '+str(l0_hstr)+'\n')
 f.write('#define Tstr_W_l0 '+str(l0_wstr)+'\n')
 f.write('#define Tpad_H_l0 '+str(l0_hpad)+'\n')
 f.write('#define Tpad_W_l0 '+str(l0_wpad)+'\n')
+
 f.write('// Layer1\n')
 f.write('#define Tin_C_l1 '+str(l1_in_ch)+'\n')
 f.write('#define Tout_C_l1 '+str(l1_out_ch)+'\n')
@@ -68,6 +69,7 @@ f.write('#define Tstr_H_l1 '+str(l1_hstr)+'\n')
 f.write('#define Tstr_W_l1 '+str(l1_wstr)+'\n')
 f.write('#define Tpad_H_l1 '+str(l1_hpad)+'\n')
 f.write('#define Tpad_W_l1 '+str(l1_wpad)+'\n')
+
 f.write('// Layer2\n')
 f.write('#define Tin_C_l2 '+str(l2_in_ch)+'\n')
 f.write('#define Tout_C_l2 '+str(l2_out_ch)+'\n')
@@ -90,54 +92,92 @@ f.write('#define EPOCHS '+str(epochs)+'\n')
 f.write('#define BATCH_SIZE '+str(batch_size)+'\n')
 f.close()
 
+# Simple input data
+inp = np.ones((batch_size, l0_in_ch, l0_hin, l0_win), dtype=np.float32) / np.float32(1000)
 
-# Simple input data 
-inp = torch.torch.div(torch.ones(batch_size, l0_in_ch, l0_hin, l0_win), 1000)
-class DNN(nn.Module):
+
+# ---------------------------------------------------------------------------
+# Layer primitives (NumPy re-implementation of the former PyTorch modules)
+# ---------------------------------------------------------------------------
+
+def conv2d_forward(x, w, stride, pad):
+	"""2D convolution without bias. x: (B, Cin, H, W), w: (Cout, Cin, Kh, Kw)."""
+	sh, sw = stride
+	ph, pw = pad
+	xp = np.pad(x, ((0, 0), (0, 0), (ph, ph), (pw, pw)))
+	# windows: (B, Cin, Hout', Wout', Kh, Kw) -> apply stride
+	win = np.lib.stride_tricks.sliding_window_view(xp, w.shape[2:], axis=(2, 3))[:, :, ::sh, ::sw]
+	return np.einsum('bchwij,ocij->bohw', win, w).astype(np.float32)
+
+
+def conv2d_weight_grad(x, grad_out, w_shape, stride, pad):
+	"""Gradient of the conv2d loss w.r.t. its weights."""
+	sh, sw = stride
+	ph, pw = pad
+	xp = np.pad(x, ((0, 0), (0, 0), (ph, ph), (pw, pw)))
+	win = np.lib.stride_tricks.sliding_window_view(xp, w_shape[2:], axis=(2, 3))[:, :, ::sh, ::sw]
+	return np.einsum('bchwij,bohw->ocij', win, grad_out).astype(np.float32)
+
+
+class DNN:
 	def __init__(self):
-		super().__init__()
-		self.l0 = nn.Conv2d(in_channels=l0_in_ch, out_channels=l0_out_ch, kernel_size=(l0_hk, l0_wk), padding=(l0_hpad, l0_wpad), stride=(l0_hstr, l0_wstr), bias=False)
-		self.l1 = nn.ReLU()
-		self.l2 = nn.Linear(in_features=l2_in_ch, out_features=l2_out_ch, bias=False)
+		# Weights initialized as N(0, 1), as with nn.init.normal_(mean=0, std=1)
+		self.l0_weight = np.random.normal(0.0, 1.0, (l0_out_ch, l0_in_ch, l0_hk, l0_wk)).astype(np.float32)
+		self.l2_weight = np.random.normal(0.0, 1.0, (l2_out_ch, l2_in_ch)).astype(np.float32)
 
 	def forward(self, x):
-		x = self.l0(x)
-		x = self.l1(x)
-		x = torch.reshape(x, (-1,))
-		x = self.l2(x).float()
-		return x
+		self.x0 = x
+		self.z0 = conv2d_forward(x, self.l0_weight, (l0_hstr, l0_wstr), (l0_hpad, l0_wpad))	# l0: Conv2D
+		self.a1 = np.maximum(self.z0, 0)													# l1: ReLU
+		self.v = self.a1.reshape(-1)														# flatten
+		return (self.l2_weight @ self.v).astype(np.float32)								# l2: Linear
+
+	def backward(self, grad_out):
+		# l2: Linear
+		self.l2_grad = np.outer(grad_out, self.v).astype(np.float32)
+		grad_v = self.l2_weight.T @ grad_out
+		# reshape + l1: ReLU
+		grad_z0 = grad_v.reshape(self.z0.shape) * (self.z0 > 0)
+		# l0: Conv2D
+		self.l0_grad = conv2d_weight_grad(self.x0, grad_z0, self.l0_weight.shape, (l0_hstr, l0_wstr), (l0_hpad, l0_wpad))
+
+	def sgd_step(self, lr):
+		self.l0_weight -= np.float32(lr) * self.l0_grad
+		self.l2_weight -= np.float32(lr) * self.l2_grad
+
+
+def mse_loss(out, target):
+	"""MSE loss (mean reduction) and its gradient w.r.t. out."""
+	diff = out - target
+	loss = np.mean(diff ** 2)
+	grad = (2.0 / diff.size) * diff
+	return loss, grad.astype(np.float32)
+
 
 # Initialize network
 net = DNN()
-for p in net.parameters():
-	nn.init.normal_(p, mean=0.0, std=1.0)
-net.zero_grad()
-
 
 # All-ones fake label 
-output_test = net(inp)
-label = torch.ones_like(output_test)
+output_test = net.forward(inp)
+label = np.ones_like(output_test)
+
 f = open('io_data.h', 'w')
 f.write('// Init weights\n')
 f.write('#define WGT_SIZE_L0 '+str(l0_in_ch*l0_out_ch*l0_hk*l0_wk)+'\n')
-f.write('PI_L2 float init_WGT_l0[WGT_SIZE_L0] = {'+dump.tensor_to_string(net.l0.weight.data)+'};\n')
+f.write('PI_L2 float init_WGT_l0[WGT_SIZE_L0] = {'+dump.tensor_to_string(net.l0_weight)+'};\n')
 f.write('#define WGT_SIZE_L2 '+str(l2_in_ch*l2_out_ch*l2_hk*l2_wk)+'\n')
-f.write('PI_L2 float init_WGT_l2[WGT_SIZE_L2] = {'+dump.tensor_to_string(net.l2.weight.data)+'};\n')
+f.write('PI_L2 float init_WGT_l2[WGT_SIZE_L2] = {'+dump.tensor_to_string(net.l2_weight)+'};\n')
 f.close()
 
-optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=0)
-loss_fn = nn.MSELoss()
-
-# Train the DNN
+# Train the DNN (SGD, no momentum)
 for batch in range(epochs):
-	optimizer.zero_grad()
-	out = net(inp)
-	loss = loss_fn(out, label)
-	loss.backward()
-	optimizer.step()
+	out = net.forward(inp)
+	loss, grad = mse_loss(out, label)
+	net.backward(grad)
+	net.sgd_step(learning_rate)
 
 # Inference once after training
-out = net(inp)
+out = net.forward(inp)
 
 f = open('io_data.h', 'a')
 f.write('// Input and Output data\n')
