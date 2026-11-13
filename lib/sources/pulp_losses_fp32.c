@@ -76,13 +76,12 @@ void pulp_MSELoss ( void * loss_args )
   int off = 0;
 
   float loss = 0.0f;
-  float meanval = 1.0f / size;
   
   for(int i=0; i<size; i++){
     /**
      * EXERCISE 2 - LOSS FUNCTION 
     */
-    loss += /* YOUR CODE HERE, REMOVE 0; */ 0; 
+    loss; /* YOUR CODE HERE */
     /**
      * END OF EXERCISE 2 - LOSS FUNCTION
     */
@@ -98,7 +97,7 @@ void pulp_MSELoss ( void * loss_args )
     /**
      * EXERCISE 2 - LOSS FUNCTION
     */
-    outDiff[i] = /* YOUR CODE HERE, REMOVE 0; */ 0;
+    outDiff[i]; /* YOUR CODE HERE */
     /**
      * END OF EXERCISE 2 - LOSS FUNCTION
     */

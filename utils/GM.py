@@ -43,58 +43,6 @@ l2_wstr = 1
 l2_hpad = 0
 l2_wpad = 0
 
-f = open('init-defines.h', 'w')
-f.write('// Layer0\n')
-f.write('#define Tin_C_l0 '+str(l0_in_ch)+'\n')
-f.write('#define Tout_C_l0 '+str(l0_out_ch)+'\n')
-f.write('#define Tker_H_l0 '+str(l0_hk)+'\n')
-f.write('#define Tker_W_l0 '+str(l0_wk)+'\n')
-f.write('#define Tin_H_l0 '+str(l0_hin)+'\n')
-f.write('#define Tin_W_l0 '+str(l0_win)+'\n')
-f.write('#define Tout_H_l0 '+str(math.floor((l0_hin-l0_hk+2*l0_hpad+l0_hstr)/l0_hstr))+'\n')
-f.write('#define Tout_W_l0 '+str(math.floor((l0_win-l0_wk+2*l0_wpad+l0_wstr)/l0_wstr))+'\n')
-f.write('#define Tstr_H_l0 '+str(l0_hstr)+'\n')
-f.write('#define Tstr_W_l0 '+str(l0_wstr)+'\n')
-f.write('#define Tpad_H_l0 '+str(l0_hpad)+'\n')
-f.write('#define Tpad_W_l0 '+str(l0_wpad)+'\n')
-
-f.write('// Layer1\n')
-f.write('#define Tin_C_l1 '+str(l1_in_ch)+'\n')
-f.write('#define Tout_C_l1 '+str(l1_out_ch)+'\n')
-f.write('#define Tin_H_l1 '+str(l1_hin)+'\n')
-f.write('#define Tin_W_l1 '+str(l1_win)+'\n')
-f.write('#define Tout_H_l1 '+str(math.floor((l1_hin-l1_hk+2*l1_hpad+l1_hstr)/l1_hstr))+'\n')
-f.write('#define Tout_W_l1 '+str(math.floor((l1_win-l1_wk+2*l1_wpad+l1_wstr)/l1_wstr))+'\n')
-f.write('#define Tstr_H_l1 '+str(l1_hstr)+'\n')
-f.write('#define Tstr_W_l1 '+str(l1_wstr)+'\n')
-f.write('#define Tpad_H_l1 '+str(l1_hpad)+'\n')
-f.write('#define Tpad_W_l1 '+str(l1_wpad)+'\n')
-
-f.write('// Layer2\n')
-f.write('#define Tin_C_l2 '+str(l2_in_ch)+'\n')
-f.write('#define Tout_C_l2 '+str(l2_out_ch)+'\n')
-f.write('#define Tker_H_l2 '+str(l2_hk)+'\n')
-f.write('#define Tker_W_l2 '+str(l2_wk)+'\n')
-f.write('#define Tin_H_l2 '+str(l2_hin)+'\n')
-f.write('#define Tin_W_l2 '+str(l2_win)+'\n')
-f.write('#define Tout_H_l2 '+str(math.floor((l2_hin-l2_hk+2*l2_hpad+l2_hstr)/l2_hstr))+'\n')
-f.write('#define Tout_W_l2 '+str(math.floor((l2_win-l2_wk+2*l2_wpad+l2_wstr)/l2_wstr))+'\n')
-f.write('#define Tstr_H_l2 '+str(l2_hstr)+'\n')
-f.write('#define Tstr_W_l2 '+str(l2_wstr)+'\n')
-f.write('#define Tpad_H_l2 '+str(l2_hpad)+'\n')
-f.write('#define Tpad_W_l2 '+str(l2_wpad)+'\n')
-f.close()
-
-f = open('init-defines.h', 'a')
-f.write('\n// HYPERPARAMETERS\n')
-f.write('#define LEARNING_RATE '+str(learning_rate)+'\n')
-f.write('#define EPOCHS '+str(epochs)+'\n')
-f.write('#define BATCH_SIZE '+str(batch_size)+'\n')
-f.close()
-
-# Simple input data
-inp = np.ones((batch_size, l0_in_ch, l0_hin, l0_win), dtype=np.float32) / np.float32(1000)
-
 
 # ---------------------------------------------------------------------------
 # Layer primitives (NumPy re-implementation of the former PyTorch modules)
@@ -154,37 +102,117 @@ def mse_loss(out, target):
 	return loss, grad.astype(np.float32)
 
 
-# Initialize network
-net = DNN()
+# ---------------------------------------------------------------------------
+# Header generation and training
+# ---------------------------------------------------------------------------
 
-# All-ones fake label 
-output_test = net.forward(inp)
-label = np.ones_like(output_test)
+def out_size_1d(size, k, pad, stride):
+	return math.floor((size-k+2*pad+stride)/stride)
 
-f = open('io_data.h', 'w')
-f.write('// Init weights\n')
-f.write('#define WGT_SIZE_L0 '+str(l0_in_ch*l0_out_ch*l0_hk*l0_wk)+'\n')
-f.write('PI_L2 float init_WGT_l0[WGT_SIZE_L0] = {'+dump.tensor_to_string(net.l0_weight)+'};\n')
-f.write('#define WGT_SIZE_L2 '+str(l2_in_ch*l2_out_ch*l2_hk*l2_wk)+'\n')
-f.write('PI_L2 float init_WGT_l2[WGT_SIZE_L2] = {'+dump.tensor_to_string(net.l2_weight)+'};\n')
-f.close()
 
-# Train the DNN (SGD, no momentum)
-for batch in range(epochs):
+def write_defines(path='init-defines.h'):
+	with open(path, 'w') as f:
+		f.write('// Layer0\n')
+		f.write('#define Tin_C_l0 '+str(l0_in_ch)+'\n')
+		f.write('#define Tout_C_l0 '+str(l0_out_ch)+'\n')
+		f.write('#define Tker_H_l0 '+str(l0_hk)+'\n')
+		f.write('#define Tker_W_l0 '+str(l0_wk)+'\n')
+		f.write('#define Tin_H_l0 '+str(l0_hin)+'\n')
+		f.write('#define Tin_W_l0 '+str(l0_win)+'\n')
+		f.write('#define Tout_H_l0 '+str(out_size_1d(l0_hin, l0_hk, l0_hpad, l0_hstr))+'\n')
+		f.write('#define Tout_W_l0 '+str(out_size_1d(l0_win, l0_wk, l0_wpad, l0_wstr))+'\n')
+		f.write('#define Tstr_H_l0 '+str(l0_hstr)+'\n')
+		f.write('#define Tstr_W_l0 '+str(l0_wstr)+'\n')
+		f.write('#define Tpad_H_l0 '+str(l0_hpad)+'\n')
+		f.write('#define Tpad_W_l0 '+str(l0_wpad)+'\n')
+
+		f.write('// Layer1\n')
+		f.write('#define Tin_C_l1 '+str(l1_in_ch)+'\n')
+		f.write('#define Tout_C_l1 '+str(l1_out_ch)+'\n')
+		f.write('#define Tin_H_l1 '+str(l1_hin)+'\n')
+		f.write('#define Tin_W_l1 '+str(l1_win)+'\n')
+		f.write('#define Tout_H_l1 '+str(out_size_1d(l1_hin, l1_hk, l1_hpad, l1_hstr))+'\n')
+		f.write('#define Tout_W_l1 '+str(out_size_1d(l1_win, l1_wk, l1_wpad, l1_wstr))+'\n')
+		f.write('#define Tstr_H_l1 '+str(l1_hstr)+'\n')
+		f.write('#define Tstr_W_l1 '+str(l1_wstr)+'\n')
+		f.write('#define Tpad_H_l1 '+str(l1_hpad)+'\n')
+		f.write('#define Tpad_W_l1 '+str(l1_wpad)+'\n')
+
+		f.write('// Layer2\n')
+		f.write('#define Tin_C_l2 '+str(l2_in_ch)+'\n')
+		f.write('#define Tout_C_l2 '+str(l2_out_ch)+'\n')
+		f.write('#define Tker_H_l2 '+str(l2_hk)+'\n')
+		f.write('#define Tker_W_l2 '+str(l2_wk)+'\n')
+		f.write('#define Tin_H_l2 '+str(l2_hin)+'\n')
+		f.write('#define Tin_W_l2 '+str(l2_win)+'\n')
+		f.write('#define Tout_H_l2 '+str(out_size_1d(l2_hin, l2_hk, l2_hpad, l2_hstr))+'\n')
+		f.write('#define Tout_W_l2 '+str(out_size_1d(l2_win, l2_wk, l2_wpad, l2_wstr))+'\n')
+		f.write('#define Tstr_H_l2 '+str(l2_hstr)+'\n')
+		f.write('#define Tstr_W_l2 '+str(l2_wstr)+'\n')
+		f.write('#define Tpad_H_l2 '+str(l2_hpad)+'\n')
+		f.write('#define Tpad_W_l2 '+str(l2_wpad)+'\n')
+
+		f.write('\n// HYPERPARAMETERS\n')
+		f.write('#define LEARNING_RATE '+str(learning_rate)+'\n')
+		f.write('#define EPOCHS '+str(epochs)+'\n')
+		f.write('#define BATCH_SIZE '+str(batch_size)+'\n')
+
+
+def write_init_weights(net, path='io_data.h'):
+	with open(path, 'w') as f:
+		f.write('// Init weights\n')
+		f.write('#define WGT_SIZE_L0 '+str(l0_in_ch*l0_out_ch*l0_hk*l0_wk)+'\n')
+		f.write('PI_L2 float init_WGT_l0[WGT_SIZE_L0] = {'+dump.tensor_to_string(net.l0_weight)+'};\n')
+		f.write('#define WGT_SIZE_L2 '+str(l2_in_ch*l2_out_ch*l2_hk*l2_wk)+'\n')
+		f.write('PI_L2 float init_WGT_l2[WGT_SIZE_L2] = {'+dump.tensor_to_string(net.l2_weight)+'};\n')
+
+
+def write_io_data(inp, out, label, path='io_data.h'):
+	out_size = out_size_1d(l2_hin, l2_hk, l2_hpad, l2_hstr) * out_size_1d(l2_win, l2_wk, l2_wpad, l2_wstr) * l2_out_ch
+	with open(path, 'a') as f:
+		f.write('// Input and Output data\n')
+		f.write('#define IN_SIZE 192\n')
+		f.write('PI_L1 float INPUT[IN_SIZE] = {'+dump.tensor_to_string(inp)+'};\n')
+		f.write('#define OUT_SIZE '+str(out_size)+'\n')
+		f.write('PI_L2 float REFERENCE_OUTPUT[OUT_SIZE] = {'+dump.tensor_to_string(out)+'};\n')
+		f.write('PI_L1 float LABEL[OUT_SIZE] = {'+dump.tensor_to_string(label)+'};\n')
+
+
+def train(net, inp, label):
+	"""Train the DNN with SGD (no momentum) and MSE loss."""
+	for epoch in range(epochs):
+		out = net.forward(inp)
+		loss, grad = mse_loss(out, label)
+		net.backward(grad)
+		net.sgd_step(learning_rate)
+
+
+def main():
+	# Fixed seed: same initial weights (and results) at every run
+	np.random.seed(42)
+
+	write_defines()
+
+	# Simple input data
+	inp = np.ones((batch_size, l0_in_ch, l0_hin, l0_win), dtype=np.float32) / np.float32(1000)
+
+	# Initialize network
+	net = DNN()
+
+	# All-ones fake label
+	output_test = net.forward(inp)
+	label = np.ones_like(output_test)
+
+	write_init_weights(net)
+
+	# Train the DNN
+	train(net, inp, label)
+
+	# Inference once after training
 	out = net.forward(inp)
-	loss, grad = mse_loss(out, label)
-	net.backward(grad)
-	net.sgd_step(learning_rate)
 
-# Inference once after training
-out = net.forward(inp)
+	write_io_data(inp, out, label)
 
-f = open('io_data.h', 'a')
-f.write('// Input and Output data\n')
-f.write('#define IN_SIZE 192\n')
-f.write('PI_L1 float INPUT[IN_SIZE] = {'+dump.tensor_to_string(inp)+'};\n')
-out_size = (int(math.floor(l2_hin-l2_hk+2*l2_hpad+l2_hstr)/l2_hstr)) * (int(math.floor(l2_win-l2_wk+2*l2_wpad+l2_wstr)/l2_wstr)) * l2_out_ch
-f.write('#define OUT_SIZE '+str(out_size)+'\n')
-f.write('PI_L2 float REFERENCE_OUTPUT[OUT_SIZE] = {'+dump.tensor_to_string(out)+'};\n')
-f.write('PI_L1 float LABEL[OUT_SIZE] = {'+dump.tensor_to_string(label)+'};\n')
-f.close()
+
+if __name__ == '__main__':
+	main()

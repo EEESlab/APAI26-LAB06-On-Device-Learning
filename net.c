@@ -184,13 +184,8 @@ void compute_loss()
   loss_args.output = &layer2_out;
   loss_args.target = LABEL;
   loss_args.wr_loss = &loss;
-  /**
-   * EXERCISE 2 - LOSS FUNCTION
-  */
+  // The MSE loss is completed in EXERCISE 2 (lib/sources/pulp_losses_fp32.c)
   pulp_MSELoss(&loss_args);
-  /**
-   * END OF EXERCISE 2 - LOSS FUNCTION
-  */
 }
 
 /**
@@ -225,12 +220,9 @@ void print_output()
   for (int i=0; i<Tout_C_l2*Tout_H_l2*Tout_W_l2; i++)
   {
     printf("%f ", l2_out[i]);
-    // Newline when an output row ends
-    // if(!(i%Tout_W_l2)) printf("\n");
     // Newline when an output channel ends
-    if(!(i%Tout_W_l2*Tout_H_l2)) printf("\n");
+    if(!((i+1)%(Tout_H_l2*Tout_W_l2))) printf("\n");
   }
-  printf("\n");
 }
 
 // Function to print the gradients
@@ -243,7 +235,7 @@ void print_gradients()
   printf("\n\nLayer 2 input gradient:\n");
   for (int i=0; i<Tin_C_l2*Tout_H_l2*Tout_W_l2; i++) printf("%f ", l2_in_diff[i]);
   printf("\n\nLayer 1 input gradient:\n");
-  for (int i=0; i<Tout_C_l2*Tout_H_l2*Tout_W_l2; i++) printf("%f ", l1_in_diff[i]);
+  for (int i=0; i<Tin_C_l1*Tin_H_l1*Tin_W_l1; i++) printf("%f ", l1_in_diff[i]);
   printf("\n\nLayer 0 weight gradient:\n");
   for (int i=0; i<Tout_C_l0*Tin_C_l0*Tker_H_l0*Tker_W_l0; i++) printf("%f ", l0_ker_diff[i]);
   printf("\n\n");
@@ -253,40 +245,36 @@ void print_gradients()
 void print_weights()
 {
   //printf("Layer 0 weights:\n");
-  //for (int i=0; i<Tout_C_l2*Tin_C_l2*Tker_H_l2*Tker_W_l2; i++) printf("%f ", l2_ker[i]);
+  //for (int i=0; i<Tout_C_l0*Tin_C_l0*Tker_H_l0*Tker_W_l0; i++) printf("%f ", l0_ker[i]);
   printf("Layer 2 weights:\n");
-  for (int i=0; i<Tout_C_l0*Tin_C_l0*Tker_H_l0*Tker_W_l0; i++) printf("%f ", l0_ker[i]);
+  for (int i=0; i<Tout_C_l2*Tin_C_l2*Tker_H_l2*Tker_W_l2; i++) printf("%f ", l2_ker[i]);
   printf("\n\n");
 }
 
 
-/**
- * EXERCISE 0 - PRINT DATA
-*/
+// Function to print the input data
 void print_input()
 {
   printf("\nLayer 0 input:\n");
 
   for (int i=0; i<Tin_C_l0*Tin_H_l0*Tin_W_l0; i++) 
   {
-    /* YOUR CODE HERE */
+    printf("%f ", l0_in[i]);
   }
   printf("\n");
 }
 
+// Function to print the label
 void print_label()
 {
   printf("\nLabel is:\n");
 
   for (int i=0; i<Tout_C_l2*Tout_H_l2*Tout_W_l2; i++)
   {
-    /* YOUR CODE HERE */
+    printf("%f ", LABEL[i]);
   }
   printf("\n");
 }
-/**
- * END OF EXERCISE 0 - PRINT DATA
-*/
 
 
 // Function to check post-training output wrt Golden Model (GM)
@@ -313,20 +301,6 @@ void net_step()
 
   printf("Initializing network..\n");
   DNN_init();
-  
-  /**
-   * EXERCISE 0 - PRINT DATA
-  */
-
-  printf("\nPrinting DNN input..\n");
-  /* YOUR CODE HERE */
-  printf("\nPrinting label..\n");
-  /* YOUR CODE HERE */
- 
-  /**
-   * END OF EXERCISE 0 - PRINT DATA
-  */
-
 
   /**
    * EXERCISE 1 - FORWARD PREDICTION
@@ -353,14 +327,9 @@ void net_step()
   {
     forward();
 
-    /**
-     * EXERCISE 2 - LOSS FUNCTION
-    */
+    // Loss and output gradient (completed in EXERCISE 2, lib/sources/pulp_losses_fp32.c)
     compute_loss();
-    /**
-     * END OF EXERCISE 2 - LOSS FUNCTION
-    */
-    
+
     /**
      * EXERCISE 3 - BACKWARD
     */
@@ -372,7 +341,7 @@ void net_step()
     */
 
     /**
-     * EXERCISE 4 - UPDATE WEIGHTS
+     * EXERCISE 4 - WEIGHT UPDATE
     */
     //printf("Weights BEFORE the update:\n");
     //print_weights();
@@ -380,7 +349,7 @@ void net_step()
     //printf("Weights AFTER the update:\n");
     //print_weights();
     /**
-     * END OF EXERCISE 4 - UPDATE WEIGHTS
+     * END OF EXERCISE 4 - WEIGHT UPDATE
     */
   }
 

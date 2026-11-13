@@ -21,7 +21,7 @@ TRAIN_LIB_SRCS=$(TRAIN_LIB)/sources
 APP_SRCS = main.c net.c
 
 APP_CFLAGS += -I. -I$(TRAIN_LIB)/include
-APP_CFLAGS += -O3 -g3
+APP_CFLAGS += -O3 -g
 APP_CFLAGS += -DFABRIC
 APP_CFLAGS += -DCLUSTER
 APP_CFLAGS += -DNUM_CORES=$(NUM_CORES)
@@ -55,6 +55,7 @@ APP_SRCS += $(TRAIN_LIB_SRCS)/pulp_train_utils_fp32.c
 
 # RULES
 get_golden:
+	rm -rf BUILD/
 	python3 ./utils/GM.py
 
 include $(RULES_DIR)/pmsis_rules.mk
